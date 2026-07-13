@@ -5,6 +5,7 @@ import Hero from "./components/Hero";
 import Welcome from "./components/Welcome";
 import Stats from "./components/Stats";
 import FeaturedLetters from "./components/FeaturedLetters";
+import GalleryPreview from "./components/GalleryPreview";
 
 export default function Home() {
   return (
@@ -16,6 +17,7 @@ export default function Home() {
 <Stats />
 
 <FeaturedLetters />
+<GalleryPreview />
 
     </main>
   );
