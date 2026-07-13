@@ -6,6 +6,8 @@ import Welcome from "./components/Welcome";
 import Stats from "./components/Stats";
 import FeaturedLetters from "./components/FeaturedLetters";
 import GalleryPreview from "./components/GalleryPreview";
+import Stories from "./components/Stories";
+import Footer from "./components/Footer";
 
 export default function Home() {
   return (
@@ -18,6 +20,8 @@ export default function Home() {
 
 <FeaturedLetters />
 <GalleryPreview />
+<Stories />
+<Footer />
 
     </main>
   );
