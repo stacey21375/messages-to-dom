@@ -1,5 +1,3 @@
-import Image from "next/image";
-import Link from "next/link";
 import Navbar from "./components/Navbar";
 import Hero from "./components/Hero";
 import Welcome from "./components/Welcome";
@@ -8,21 +6,23 @@ import FeaturedLetters from "./components/FeaturedLetters";
 import GalleryPreview from "./components/GalleryPreview";
 import Stories from "./components/Stories";
 import Footer from "./components/Footer";
+import PageDecorations from "./components/PageDecorations";
 
 export default function Home() {
   return (
-    <main className="min-h-screen bg-black text-white">
-      <Navbar />
-      <Hero />
+    <main className="relative min-h-screen overflow-hidden bg-black text-white">
+      <PageDecorations />
 
-<Welcome />
-<Stats />
-
-<FeaturedLetters />
-<GalleryPreview />
-<Stories />
-<Footer />
-
+      <div className="relative z-10">
+        <Navbar />
+        <Hero />
+        <Welcome />
+        <Stats />
+        <FeaturedLetters />
+        <GalleryPreview />
+        <Stories />
+        <Footer />
+      </div>
     </main>
   );
 }
