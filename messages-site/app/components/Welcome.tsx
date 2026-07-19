@@ -121,14 +121,14 @@ export default function Welcome() {
                   </span>
                 </div>
 
-                <div className="relative flex-1">
+                <div className="relative min-w-0 flex-1">
                   <p className="text-xs uppercase tracking-[0.25em] text-pink-300/70">
                     Seal it with love
                   </p>
 
-                  <h2 className="mt-2 font-serif text-2xl uppercase text-white">
-                    Send a Letter
-                  </h2>
+                  <h2 className="mt-2 break-words font-serif text-2xl uppercase text-white">
+  Send a Letter
+</h2>
 
                   <p className="mt-2 text-sm leading-6 text-pink-100/65">
                     Share your message, memory, artwork, or encouragement.
@@ -155,12 +155,12 @@ export default function Welcome() {
                   ♡
                 </div>
 
-                <div className="flex-1">
+                <div className="min-w-0 flex-1">
                   <p className="text-xs uppercase tracking-[0.25em] text-gray-500">
                     Open the fan book
                   </p>
 
-                  <h2 className="mt-2 font-serif text-2xl uppercase text-white">
+                  <h2 className="mt-2 break-words font-serif text-2xl uppercase text-white">
                     Read the Letters
                   </h2>
 

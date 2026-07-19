@@ -2,14 +2,14 @@ import Image from "next/image";
 
 export default function Hero() {
   return (
-    <section className="relative border-b border-pink-500/20">
-      <div className="relative mx-auto min-h-[420px] max-w-7xl overflow-hidden sm:min-h-[520px]">
+    <section className="relative w-full overflow-hidden border-b border-pink-500/20">
+      <div className="relative mx-auto aspect-[16/10] w-full max-w-7xl sm:aspect-[16/8]">
         <Image
           src="/messages-to-dom-banner.png"
           alt="Messages to Dom banner decorated with hearts"
           fill
           priority
-          className="object-cover object-center"
+          className="object-contain object-center sm:object-cover"
           sizes="100vw"
         />
 
