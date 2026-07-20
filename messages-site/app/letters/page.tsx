@@ -139,7 +139,7 @@ export default function LettersPage() {
             </p>
 
             <h1 className="mt-4 font-serif text-4xl text-white sm:text-5xl lg:text-6xl">
-              Letters to Dom
+              Letters Waiting for Dom
             </h1>
 
             <p className="mx-auto mt-7 max-w-2xl leading-8 text-gray-400">
@@ -196,14 +196,15 @@ export default function LettersPage() {
             <>
               <div className="mt-16 grid gap-x-8 gap-y-14 sm:grid-cols-2 lg:grid-cols-3">
                 {visibleLetters.map((item) => (
-                  <EnvelopeCard
-                    key={item.id}
-                    name={item.name}
-                    country={item.country}
-                    createdAt={item.created_at}
-                    hasImage={Boolean(item.imagePreviewUrl)}
-                    onOpen={() => openLetter(item)}
-                  />
+                 <EnvelopeCard
+  key={item.id}
+  id={item.id}
+  name={item.name}
+  country={item.country}
+  createdAt={item.created_at}
+  hasImage={Boolean(item.imagePreviewUrl)}
+  onOpen={() => openLetter(item)}
+/>
                 ))}
               </div>
 
