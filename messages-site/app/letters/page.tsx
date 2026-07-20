@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 import { supabase } from "../lib/supabase";
+import EnvelopeCard from "./EnvelopeCard";
+import LetterModal from "./LetterModal";
 
 type ApprovedLetter = {
   id: number;
@@ -18,8 +20,13 @@ type LetterWithImage = ApprovedLetter & {
   imagePreviewUrl: string | null;
 };
 
+const LETTERS_PER_PAGE = 18;
+
 export default function LettersPage() {
   const [letters, setLetters] = useState<LetterWithImage[]>([]);
+  const [selectedLetter, setSelectedLetter] =
+    useState<LetterWithImage | null>(null);
+  const [visibleCount, setVisibleCount] = useState(LETTERS_PER_PAGE);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
 
@@ -83,121 +90,161 @@ export default function LettersPage() {
     loadLetters();
   }, []);
 
+  const visibleLetters = letters.slice(0, visibleCount);
+  const hasMoreLetters = visibleCount < letters.length;
+
+  function openLetter(letter: LetterWithImage) {
+    setSelectedLetter(letter);
+  }
+
+  function closeLetter() {
+    setSelectedLetter(null);
+  }
+
+  function loadMoreLetters() {
+    setVisibleCount((currentCount) => currentCount + LETTERS_PER_PAGE);
+  }
+
   return (
-    <main className="min-h-screen bg-black text-white">
+    <main className="min-h-screen overflow-x-hidden bg-black text-white">
       <Navbar />
 
-      <section className="mx-auto max-w-6xl px-6 py-16">
-        <div className="text-center">
-          <p className="text-sm uppercase tracking-[0.3em] text-pink-400">
-            Open the letters
-          </p>
+      <section className="relative overflow-hidden border-b border-pink-500/20">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0"
+        >
+          <div className="absolute -left-40 top-20 h-96 w-96 rounded-full bg-pink-600/10 blur-3xl" />
+          <div className="absolute -right-40 top-40 h-96 w-96 rounded-full bg-fuchsia-700/10 blur-3xl" />
 
-          <h1 className="mt-3 font-serif text-4xl sm:text-5xl">
-            Letters from Fans
-          </h1>
+          <span className="absolute left-[8%] top-24 text-6xl text-pink-400/10">
+            ♡
+          </span>
 
-          <div className="mx-auto mt-5 h-px w-32 bg-pink-500/70" />
-
-          <p className="mx-auto mt-7 max-w-2xl leading-8 text-gray-400">
-            Approved messages of kindness, gratitude, encouragement, and
-            appreciation from fans around the world.
-          </p>
+          <span className="absolute right-[9%] top-36 text-7xl text-pink-400/10">
+            ♡
+          </span>
         </div>
 
-        {isLoading && (
-          <div className="mt-14 border border-pink-400/30 bg-white/[0.03] p-10 text-center">
-            <div className="text-5xl">💌</div>
+        <div className="relative mx-auto max-w-7xl px-5 py-16 sm:px-6 sm:py-20">
+          <div className="text-center">
+            <div className="flex items-center justify-center gap-4">
+              <div className="h-px w-14 bg-gradient-to-r from-transparent to-pink-500" />
+              <span className="text-xl text-pink-400">♡</span>
+              <div className="h-px w-14 bg-gradient-to-l from-transparent to-pink-500" />
+            </div>
 
-            <p className="mt-4 text-pink-200">
-              Opening the fan book...
+            <p className="mt-6 text-xs uppercase tracking-[0.3em] text-pink-400 sm:text-sm">
+              Open the fan mail
             </p>
-          </div>
-        )}
 
-        {loadError && (
-          <div className="mt-14 border border-red-400/40 bg-red-950/30 p-6 text-center text-red-200">
-            {loadError}
-          </div>
-        )}
+            <h1 className="mt-4 font-serif text-4xl text-white sm:text-5xl lg:text-6xl">
+              Letters to Dom
+            </h1>
 
-        {!isLoading && !loadError && letters.length === 0 && (
-          <div className="mt-14 border border-pink-400/30 bg-white/[0.03] p-10 text-center">
-            <div className="text-5xl">💌</div>
-
-            <h2 className="mt-4 font-serif text-2xl text-pink-200">
-              The fan book is waiting for its first approved letter.
-            </h2>
-
-            <p className="mx-auto mt-3 max-w-xl leading-7 text-gray-400">
-              Approved messages will appear here after they have been reviewed.
+            <p className="mx-auto mt-7 max-w-2xl leading-8 text-gray-400">
+              Each envelope holds a message of kindness, gratitude,
+              encouragement, artwork, or a treasured memory shared by a fan.
             </p>
-          </div>
-        )}
 
-        {!isLoading && !loadError && letters.length > 0 && (
-          <div className="mt-14 grid gap-8 md:grid-cols-2 lg:grid-cols-3">
-            {letters.map((item) => (
-              <article
-                key={item.id}
-                className="overflow-hidden border border-pink-300/30 bg-gradient-to-b from-zinc-950 to-black p-5 shadow-[0_0_24px_rgba(236,72,153,0.12)]"
-              >
-                {item.imagePreviewUrl && (
+            {!isLoading && !loadError && letters.length > 0 && (
+              <div className="mx-auto mt-8 inline-flex items-center gap-3 border border-pink-400/20 bg-pink-950/20 px-5 py-3">
+                <span className="text-pink-400">✉</span>
+
+                <span className="font-serif text-pink-100">
+                  {letters.length} approved{" "}
+                  {letters.length === 1 ? "letter" : "letters"}
+                </span>
+
+                <span className="text-pink-400">♡</span>
+              </div>
+            )}
+          </div>
+
+          {isLoading && (
+            <div className="mx-auto mt-16 max-w-xl border border-pink-400/30 bg-white/[0.03] p-10 text-center">
+              <div className="animate-pulse text-5xl">💌</div>
+
+              <p className="mt-5 font-serif text-xl text-pink-200">
+                Gathering the envelopes...
+              </p>
+            </div>
+          )}
+
+          {loadError && (
+            <div className="mx-auto mt-16 max-w-2xl border border-red-400/40 bg-red-950/30 p-6 text-center text-red-200">
+              {loadError}
+            </div>
+          )}
+
+          {!isLoading && !loadError && letters.length === 0 && (
+            <div className="mx-auto mt-16 max-w-2xl border border-pink-400/30 bg-white/[0.03] p-10 text-center">
+              <div className="text-5xl">💌</div>
+
+              <h2 className="mt-5 font-serif text-2xl text-pink-200">
+                The mail collection is waiting for its first approved letter.
+              </h2>
+
+              <p className="mx-auto mt-4 max-w-xl leading-7 text-gray-400">
+                Approved messages will appear here after they have been
+                reviewed.
+              </p>
+            </div>
+          )}
+
+          {!isLoading && !loadError && letters.length > 0 && (
+            <>
+              <div className="mt-16 grid gap-x-8 gap-y-14 sm:grid-cols-2 lg:grid-cols-3">
+                {visibleLetters.map((item) => (
+                  <EnvelopeCard
+                    key={item.id}
+                    name={item.name}
+                    country={item.country}
+                    createdAt={item.created_at}
+                    hasImage={Boolean(item.imagePreviewUrl)}
+                    onOpen={() => openLetter(item)}
+                  />
+                ))}
+              </div>
+
+              {hasMoreLetters && (
+                <div className="mt-16 text-center">
                   <button
                     type="button"
-                    className="block w-full cursor-zoom-in border border-pink-300/25 bg-black/70"
-                    onClick={() =>
-                      window.open(
-                        item.imagePreviewUrl ?? "",
-                        "_blank",
-                        "noopener,noreferrer",
-                      )
-                    }
-                    aria-label={`Open the image submitted by ${item.name}`}
+                    onClick={loadMoreLetters}
+                    className="group inline-flex items-center gap-4 border border-pink-400/50 bg-gradient-to-r from-pink-950/70 via-black to-pink-950/70 px-8 py-4 font-serif text-lg text-pink-100 shadow-[0_0_24px_rgba(236,72,153,0.15)] transition duration-300 hover:-translate-y-1 hover:border-pink-300 hover:shadow-[0_0_34px_rgba(236,72,153,0.35)]"
                   >
-                    <img
-                      src={item.imagePreviewUrl}
-                      alt={`Artwork or photo submitted by ${item.name}`}
-                      className="max-h-[420px] w-full object-contain"
-                    />
+                    <span className="transition group-hover:-rotate-6">✉</span>
+                    Load More Envelopes
+                    <span className="text-pink-400">♡</span>
                   </button>
-                )}
 
-                <div className="mt-5 bg-[#f5e8df] p-6 text-zinc-900">
-                  <p className="whitespace-pre-wrap font-serif leading-7">
-                    {item.letter}
+                  <p className="mt-4 text-sm text-gray-500">
+                    Showing {Math.min(visibleCount, letters.length)} of{" "}
+                    {letters.length} letters
                   </p>
-
-                  <div className="mt-8 border-t border-pink-900/20 pt-4 text-right">
-                    <p className="font-serif text-lg">
-                      ♡ {item.name}
-                    </p>
-
-                    {item.country && (
-                      <p className="mt-1 text-sm text-zinc-600">
-                        {item.country}
-                      </p>
-                    )}
-
-                    <p className="mt-2 text-xs text-zinc-500">
-                      {new Date(item.created_at).toLocaleDateString(
-                        "en-US",
-                        {
-                          year: "numeric",
-                          month: "long",
-                          day: "numeric",
-                        },
-                      )}
-                    </p>
-                  </div>
                 </div>
-              </article>
-            ))}
-          </div>
-        )}
+              )}
+
+              {!hasMoreLetters && letters.length > LETTERS_PER_PAGE && (
+                <div className="mt-16 flex items-center justify-center gap-4 text-pink-400/60">
+                  <div className="h-px w-16 bg-pink-400/30" />
+                  <span>All letters opened for browsing</span>
+                  <div className="h-px w-16 bg-pink-400/30" />
+                </div>
+              )}
+            </>
+          )}
+        </div>
       </section>
 
       <Footer />
+
+      <LetterModal
+        open={selectedLetter !== null}
+        onClose={closeLetter}
+        letter={selectedLetter}
+      />
     </main>
   );
 }
