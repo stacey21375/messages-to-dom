@@ -28,6 +28,7 @@ export default function LetterModal({
       return;
     }
 
+    const previousBodyOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
 
     const animationTimer = window.setTimeout(() => {
@@ -54,12 +55,14 @@ export default function LetterModal({
 
     return () => {
       window.clearTimeout(animationTimer);
-      document.body.style.overflow = "";
+      document.body.style.overflow = previousBodyOverflow;
       window.removeEventListener("keydown", handleEscape);
     };
   }, [open, onClose]);
 
-  if (!open || !letter) return null;
+  if (!open || !letter) {
+    return null;
+  }
 
   const formattedDate = new Date(letter.created_at).toLocaleDateString(
     "en-US",
@@ -72,7 +75,7 @@ export default function LetterModal({
 
   return (
     <div
-      className={`fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/85 p-4 backdrop-blur-md transition-opacity duration-300 sm:p-6 ${
+      className={`fixed inset-0 z-50 overflow-y-auto overscroll-contain bg-black/85 px-3 py-4 backdrop-blur-md transition-opacity duration-300 sm:px-6 sm:py-8 ${
         isVisible ? "opacity-100" : "opacity-0"
       }`}
       onClick={onClose}
@@ -80,13 +83,13 @@ export default function LetterModal({
       aria-modal="true"
       aria-label={`Letter from ${letter.name}`}
     >
-      <div className="relative flex min-h-full w-full items-center justify-center py-8">
+      <div className="flex min-h-full w-full items-start justify-center">
         <div
           onClick={(event) => event.stopPropagation()}
-          className={`relative w-full max-w-3xl transform transition-all duration-500 ease-out ${
+          className={`relative my-auto w-full max-w-3xl transform transition-all duration-500 ease-out ${
             isVisible
               ? "translate-y-0 scale-100 opacity-100"
-              : "translate-y-10 scale-95 opacity-0"
+              : "translate-y-8 scale-95 opacity-0"
           }`}
         >
           <div
@@ -94,27 +97,27 @@ export default function LetterModal({
             className="absolute inset-x-8 bottom-[-24px] h-16 rounded-full bg-pink-500/20 blur-3xl"
           />
 
-          <div className="relative overflow-hidden border border-[#b58a67] bg-[#ead7bd] shadow-[0_30px_90px_rgba(0,0,0,0.8)]">
+          <div className="relative max-h-[calc(100dvh-2rem)] overflow-y-auto overflow-x-hidden overscroll-contain border border-[#b58a67] bg-[#ead7bd] text-zinc-900 shadow-[0_30px_90px_rgba(0,0,0,0.8)] [-webkit-overflow-scrolling:touch] sm:max-h-[calc(100dvh-4rem)]">
             <div
               aria-hidden="true"
-              className="absolute inset-0 opacity-35 [background-image:radial-gradient(circle_at_18%_20%,rgba(255,255,255,0.8),transparent_24%),radial-gradient(circle_at_82%_70%,rgba(105,70,45,0.24),transparent_30%),repeating-linear-gradient(12deg,rgba(90,55,35,0.08)_0,rgba(90,55,35,0.08)_1px,transparent_1px,transparent_7px)]"
+              className="pointer-events-none absolute inset-0 opacity-35 [background-image:radial-gradient(circle_at_18%_20%,rgba(255,255,255,0.8),transparent_24%),radial-gradient(circle_at_82%_70%,rgba(105,70,45,0.24),transparent_30%),repeating-linear-gradient(12deg,rgba(90,55,35,0.08)_0,rgba(90,55,35,0.08)_1px,transparent_1px,transparent_7px)]"
             />
 
             <div
               aria-hidden="true"
-              className="absolute inset-3 border border-[#7d5b43]/15"
+              className="pointer-events-none absolute inset-3 border border-[#7d5b43]/15"
             />
 
             <button
               type="button"
               onClick={onClose}
-              className="absolute right-4 top-4 z-20 flex h-11 w-11 items-center justify-center rounded-full border border-white/20 bg-black/85 text-lg text-white shadow-lg transition hover:scale-110 hover:bg-pink-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-pink-400 sm:right-6 sm:top-6"
+              className="sticky right-4 top-4 z-30 ml-auto mr-4 mt-4 flex h-11 w-11 items-center justify-center rounded-full border border-white/20 bg-black/85 text-lg text-white shadow-lg transition hover:scale-110 hover:bg-pink-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-pink-400 sm:mr-6 sm:mt-6"
               aria-label="Close letter"
             >
               ✕
             </button>
 
-            <div className="relative z-10 px-6 pb-8 pt-10 text-zinc-900 sm:px-12 sm:pb-12 sm:pt-12">
+            <div className="relative z-10 px-5 pb-10 pt-2 sm:px-12 sm:pb-14">
               <div className="flex items-center justify-center gap-4 text-pink-700/70">
                 <div className="h-px w-16 bg-gradient-to-r from-transparent to-pink-700/50" />
                 <span>♡</span>
@@ -129,7 +132,7 @@ export default function LetterModal({
                 Dear Dom,
               </h2>
 
-              <div className="mt-8 whitespace-pre-wrap font-serif text-lg leading-9 text-[#3f2f28] sm:text-xl">
+              <div className="mt-8 whitespace-pre-wrap break-words font-serif text-lg leading-8 text-[#3f2f28] sm:text-xl sm:leading-9">
                 {letter.letter}
               </div>
 
@@ -161,7 +164,7 @@ export default function LetterModal({
                   With love,
                 </p>
 
-                <p className="mt-2 font-serif text-3xl text-pink-800">
+                <p className="mt-2 break-words font-serif text-3xl text-pink-800">
                   {letter.name} ♡
                 </p>
 
@@ -179,7 +182,7 @@ export default function LetterModal({
               <button
                 type="button"
                 onClick={onClose}
-                className="mx-auto mt-10 flex items-center gap-3 border border-pink-800/35 bg-pink-950/5 px-5 py-3 font-serif text-sm uppercase tracking-[0.2em] text-pink-900 transition hover:bg-pink-900 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-pink-500"
+                className="mx-auto mt-10 flex items-center gap-3 border border-pink-800/35 bg-pink-950/5 px-5 py-3 text-center font-serif text-sm uppercase tracking-[0.16em] text-pink-900 transition hover:bg-pink-900 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-pink-500 sm:tracking-[0.2em]"
               >
                 <span>✉</span>
                 Return letter to envelope
@@ -198,7 +201,7 @@ export default function LetterModal({
 
           <div
             aria-hidden="true"
-            className="absolute -bottom-6 left-1/2 z-20 flex h-20 w-20 -translate-x-1/2 items-center justify-center rounded-[45%_55%_48%_52%] border border-pink-200/70 bg-gradient-to-br from-rose-500 via-rose-800 to-rose-950 text-3xl text-white shadow-[inset_0_2px_5px_rgba(255,255,255,0.35),inset_0_-5px_9px_rgba(0,0,0,0.5),0_0_28px_rgba(236,72,153,0.7)]"
+            className="pointer-events-none absolute -bottom-5 left-1/2 z-20 flex h-16 w-16 -translate-x-1/2 items-center justify-center rounded-[45%_55%_48%_52%] border border-pink-200/70 bg-gradient-to-br from-rose-500 via-rose-800 to-rose-950 text-2xl text-white shadow-[inset_0_2px_5px_rgba(255,255,255,0.35),inset_0_-5px_9px_rgba(0,0,0,0.5),0_0_28px_rgba(236,72,153,0.7)] sm:h-20 sm:w-20 sm:text-3xl"
           >
             ♡
           </div>
