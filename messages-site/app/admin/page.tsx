@@ -25,6 +25,18 @@ type LetterWithPreview = LetterRecord & {
 
 type PendingAction = "approve" | "reject" | "delete";
 
+type MapHeartRecord = {
+  id: number;
+  latitude: number;
+  longitude: number;
+  country: string | null;
+  region: string | null;
+  created_at: string;
+  status: string;
+};
+
+type HeartAction = "approve" | "reject" | "delete";
+
 export default function AdminPage() {
   const router = useRouter();
 
@@ -38,6 +50,11 @@ export default function AdminPage() {
   const [lettersError, setLettersError] = useState("");
   const [actionMessage, setActionMessage] = useState("");
   const [activeLetterId, setActiveLetterId] = useState<number | null>(null);
+  const [pendingHearts, setPendingHearts] = useState<MapHeartRecord[]>([]);
+  const [approvedHearts, setApprovedHearts] = useState<MapHeartRecord[]>([]);
+  const [isLoadingHearts, setIsLoadingHearts] = useState(true);
+  const [heartsError, setHeartsError] = useState("");
+  const [activeHeartId, setActiveHeartId] = useState<number | null>(null);
 
   const addImagePreviews = useCallback(
     async (letters: LetterRecord[]): Promise<LetterWithPreview[]> => {
@@ -120,6 +137,34 @@ export default function AdminPage() {
     setIsLoadingLetters(false);
   }, [addImagePreviews]);
 
+  const loadMapHearts = useCallback(async () => {
+    setIsLoadingHearts(true);
+    setHeartsError("");
+
+    const { data, error } = await supabase
+      .from("map_hearts")
+      .select("id, latitude, longitude, country, region, created_at, status")
+      .in("status", ["pending", "approved"])
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.log("Could not load map hearts:", error);
+      setHeartsError("The map hearts could not be loaded.");
+      setIsLoadingHearts(false);
+      return;
+    }
+
+    const heartRecords = (data ?? []) as MapHeartRecord[];
+
+    setPendingHearts(
+      heartRecords.filter((item) => item.status === "pending"),
+    );
+    setApprovedHearts(
+      heartRecords.filter((item) => item.status === "approved"),
+    );
+    setIsLoadingHearts(false);
+  }, []);
+
   useEffect(() => {
     async function loadAdminDashboard() {
       const {
@@ -132,12 +177,12 @@ export default function AdminPage() {
         return;
       }
 
-      await loadLetters();
+      await Promise.all([loadLetters(), loadMapHearts()]);
       setIsCheckingAuth(false);
     }
 
     loadAdminDashboard();
-  }, [loadLetters, router]);
+  }, [loadLetters, loadMapHearts, router]);
 
   function removePendingLetter(letterId: number) {
     setPendingLetters((currentLetters) =>
@@ -331,6 +376,109 @@ export default function AdminPage() {
     setActiveLetterId(null);
   }
 
+  async function handlePendingHeartAction(
+    heart: MapHeartRecord,
+    action: HeartAction,
+  ) {
+    if (action === "delete") {
+      const confirmed = window.confirm(
+        "Delete this map heart permanently? This cannot be undone.",
+      );
+
+      if (!confirmed) {
+        return;
+      }
+    }
+
+    setActiveHeartId(heart.id);
+    setActionMessage("");
+    setHeartsError("");
+
+    if (action === "delete") {
+      const { error } = await supabase
+        .from("map_hearts")
+        .delete()
+        .eq("id", heart.id);
+
+      if (error) {
+        console.log("Could not delete map heart:", error);
+        setHeartsError("The map heart could not be deleted.");
+        setActiveHeartId(null);
+        return;
+      }
+
+      setPendingHearts((currentHearts) =>
+        currentHearts.filter((item) => item.id !== heart.id),
+      );
+      setActionMessage("The map heart was deleted.");
+      setActiveHeartId(null);
+      return;
+    }
+
+    const nextStatus = action === "approve" ? "approved" : "rejected";
+
+    const { error } = await supabase
+      .from("map_hearts")
+      .update({ status: nextStatus })
+      .eq("id", heart.id)
+      .eq("status", "pending");
+
+    if (error) {
+      console.log("Could not update map heart:", error);
+      setHeartsError("The map heart could not be updated.");
+      setActiveHeartId(null);
+      return;
+    }
+
+    setPendingHearts((currentHearts) =>
+      currentHearts.filter((item) => item.id !== heart.id),
+    );
+
+    if (action === "approve") {
+      setApprovedHearts((currentHearts) => [
+        { ...heart, status: "approved" },
+        ...currentHearts,
+      ]);
+      setActionMessage("The map heart was approved and is now public.");
+    } else {
+      setActionMessage("The map heart was rejected.");
+    }
+
+    setActiveHeartId(null);
+  }
+
+  async function deleteApprovedHeart(heart: MapHeartRecord) {
+    const confirmed = window.confirm(
+      "Delete this approved map heart permanently? It will disappear from the globe.",
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setActiveHeartId(heart.id);
+    setActionMessage("");
+    setHeartsError("");
+
+    const { error } = await supabase
+      .from("map_hearts")
+      .delete()
+      .eq("id", heart.id);
+
+    if (error) {
+      console.log("Could not delete approved map heart:", error);
+      setHeartsError("The approved map heart could not be deleted.");
+      setActiveHeartId(null);
+      return;
+    }
+
+    setApprovedHearts((currentHearts) =>
+      currentHearts.filter((item) => item.id !== heart.id),
+    );
+    setActionMessage("The approved map heart was deleted.");
+    setActiveHeartId(null);
+  }
+
   async function handleSignOut() {
     await supabase.auth.signOut({ scope: "local" });
     router.replace("/admin/login");
@@ -389,6 +537,12 @@ export default function AdminPage() {
         {lettersError && (
           <div className="mt-10 border border-red-400/40 bg-red-950/30 p-6 text-center text-red-200">
             {lettersError}
+          </div>
+        )}
+
+        {heartsError && (
+          <div className="mt-10 border border-red-400/40 bg-red-950/30 p-6 text-center text-red-200">
+            {heartsError}
           </div>
         )}
 
@@ -687,6 +841,158 @@ export default function AdminPage() {
                     );
                   })}
                 </div>
+              )}
+            </section>
+
+            <section className="mt-20">
+              <div className="flex flex-wrap items-end justify-between gap-4 border-b border-pink-400/25 pb-5">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.25em] text-pink-400">
+                    Around the World
+                  </p>
+                  <h2 className="mt-2 font-serif text-3xl text-white">
+                    Map Heart Moderation
+                  </h2>
+                </div>
+
+                <div className="flex flex-wrap gap-3">
+                  <span className="rounded-full border border-yellow-400/30 bg-yellow-950/30 px-4 py-2 text-sm text-yellow-200">
+                    {pendingHearts.length} pending
+                  </span>
+                  <span className="rounded-full border border-green-400/30 bg-green-950/30 px-4 py-2 text-sm text-green-200">
+                    {approvedHearts.length} approved
+                  </span>
+                </div>
+              </div>
+
+              {isLoadingHearts ? (
+                <div className="mt-8 border border-pink-400/30 bg-white/[0.03] p-10 text-center">
+                  <div className="text-5xl">🌍</div>
+                  <p className="mt-4 text-pink-200">Loading map hearts...</p>
+                </div>
+              ) : (
+                <>
+                  <div className="mt-8">
+                    <h3 className="font-serif text-2xl text-pink-200">
+                      Pending Hearts
+                    </h3>
+
+                    {pendingHearts.length === 0 ? (
+                      <div className="mt-5 border border-pink-400/30 bg-white/[0.03] p-8 text-center">
+                        <div className="text-4xl">🖤</div>
+                        <p className="mt-3 text-gray-400">
+                          No anonymous map hearts are waiting for approval.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="mt-5 grid gap-5 md:grid-cols-2">
+                        {pendingHearts.map((heart) => {
+                          const isProcessing = activeHeartId === heart.id;
+                          const location = [heart.region, heart.country]
+                            .filter(Boolean)
+                            .join(", ");
+
+                          return (
+                            <article
+                              key={heart.id}
+                              className="border border-yellow-400/30 bg-gradient-to-b from-zinc-950 to-black p-6"
+                            >
+                              <div className="flex items-start justify-between gap-4">
+                                <div>
+                                  <p className="font-serif text-2xl text-pink-200">
+                                    🖤 {location || "Approximate location"}
+                                  </p>
+                                  <p className="mt-2 text-xs text-gray-500">
+                                    Submitted {new Date(heart.created_at).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}
+                                  </p>
+                                </div>
+                                <span className="border border-yellow-400/30 bg-yellow-950/30 px-3 py-1 text-xs uppercase tracking-[0.18em] text-yellow-200">
+                                  Pending
+                                </span>
+                              </div>
+
+                              <p className="mt-4 text-sm text-gray-500">
+                                Approximate coordinates: {heart.latitude.toFixed(0)}°, {heart.longitude.toFixed(0)}°
+                              </p>
+
+                              <div className="mt-6 grid gap-3 sm:grid-cols-3">
+                                <button
+                                  type="button"
+                                  disabled={isProcessing}
+                                  onClick={() => handlePendingHeartAction(heart, "approve")}
+                                  className="border border-green-400/50 bg-green-950/40 px-4 py-3 font-semibold text-green-200 transition hover:bg-green-900/60 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                  {isProcessing ? "Working..." : "✓ Approve"}
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={isProcessing}
+                                  onClick={() => handlePendingHeartAction(heart, "reject")}
+                                  className="border border-yellow-400/50 bg-yellow-950/40 px-4 py-3 font-semibold text-yellow-200 transition hover:bg-yellow-900/60 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                  {isProcessing ? "Working..." : "✕ Reject"}
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={isProcessing}
+                                  onClick={() => handlePendingHeartAction(heart, "delete")}
+                                  className="border border-red-400/50 bg-red-950/40 px-4 py-3 font-semibold text-red-200 transition hover:bg-red-900/60 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                  {isProcessing ? "Working..." : "🗑 Delete"}
+                                </button>
+                              </div>
+                            </article>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="mt-12">
+                    <h3 className="font-serif text-2xl text-pink-200">
+                      Approved Hearts
+                    </h3>
+
+                    {approvedHearts.length === 0 ? (
+                      <p className="mt-4 text-gray-500">
+                        Approved hearts will appear here after moderation.
+                      </p>
+                    ) : (
+                      <div className="mt-5 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                        {approvedHearts.map((heart) => {
+                          const isProcessing = activeHeartId === heart.id;
+                          const location = [heart.region, heart.country]
+                            .filter(Boolean)
+                            .join(", ");
+
+                          return (
+                            <article
+                              key={heart.id}
+                              className="border border-green-400/25 bg-black/50 p-5"
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <p className="font-serif text-lg text-pink-100">
+                                  🖤 {location || "Approximate location"}
+                                </p>
+                                <span className="text-xs uppercase tracking-[0.15em] text-green-300">
+                                  Public
+                                </span>
+                              </div>
+                              <button
+                                type="button"
+                                disabled={isProcessing}
+                                onClick={() => deleteApprovedHeart(heart)}
+                                className="mt-5 w-full border border-red-400/40 bg-red-950/30 px-4 py-2 text-sm text-red-200 transition hover:bg-red-900/50 disabled:cursor-not-allowed disabled:opacity-50"
+                              >
+                                {isProcessing ? "Working..." : "Remove from Globe"}
+                              </button>
+                            </article>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </>
               )}
             </section>
           </>

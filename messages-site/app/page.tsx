@@ -4,6 +4,7 @@ import Welcome from "./components/Welcome";
 import Stats from "./components/Stats";
 import FeaturedLetters from "./components/FeaturedLetters";
 import GalleryPreview from "./components/GalleryPreview";
+import WorldHeartMap from "./components/WorldHeartMap";
 import Stories from "./components/Stories";
 import Footer from "./components/Footer";
 import PageDecorations from "./components/PageDecorations";
@@ -20,6 +21,7 @@ export default function Home() {
         <Stats />
         <FeaturedLetters />
         <GalleryPreview />
+        <WorldHeartMap />
         <Stories />
         <Footer />
       </div>
