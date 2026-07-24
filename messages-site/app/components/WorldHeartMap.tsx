@@ -1,38 +1,69 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import {
   useEffect,
   useMemo,
   useRef,
   useState,
-  type PointerEvent as ReactPointerEvent,
+  type ComponentProps,
 } from "react";
-import {
-  geoContains,
-  geoDistance,
-  geoGraticule10,
-  geoOrthographic,
-  geoPath,
-} from "d3-geo";
+import { geoContains } from "d3-geo";
 import { feature } from "topojson-client";
 import type {
   Feature,
   FeatureCollection,
-  GeoJsonProperties,
   Geometry,
 } from "geojson";
 import type { Topology } from "topojson-specification";
 import worldData from "world-atlas/countries-110m.json";
-import usData from "us-atlas/states-10m.json";
 import { supabase } from "../lib/supabase";
 
-type MapHeartRecord = {
+const Globe = dynamic(() => import("react-globe.gl"), {
+  ssr: false,
+  loading: () => (
+    <div className="flex h-[440px] items-center justify-center text-sm text-pink-200 sm:h-[560px]">
+      Preparing the globe...
+    </div>
+  ),
+});
+
+type GlobeProps = ComponentProps<typeof Globe>;
+
+type GlobeHandle = {
+  controls: () => {
+    autoRotate: boolean;
+    autoRotateSpeed: number;
+    enablePan: boolean;
+    minDistance: number;
+    maxDistance: number;
+  };
+  pointOfView: (
+    point: {
+      lat: number;
+      lng: number;
+      altitude: number;
+    },
+    transitionMs?: number,
+  ) => void;
+};
+
+type MapHeartRow = {
   id: number;
-  latitude: number;
-  longitude: number;
+  latitude: number | string;
+  longitude: number | string;
   country: string | null;
   region: string | null;
   created_at: string;
+};
+
+type DisplayHeart = {
+  id: string;
+  lat: number;
+  lng: number;
+  country: string;
+  region: string | null;
+  selected: boolean;
 };
 
 type CountryProperties = {
@@ -54,38 +85,17 @@ type SelectedLocation = {
   region: string;
 };
 
-type GlobeRotation = [number, number, number];
-
-type DragState = {
-  startClientX: number;
-  startClientY: number;
-  startRotation: GlobeRotation;
-  hasDragged: boolean;
-};
-
-const MAP_WIDTH = 900;
-const MAP_HEIGHT = 600;
-const GLOBE_CENTER_X = MAP_WIDTH / 2;
-const GLOBE_CENTER_Y = MAP_HEIGHT / 2;
-const GLOBE_SCALE = 265;
-
 const HEART_STORAGE_KEY =
   "messages-to-dom-map-heart-submitted";
 
-const countryColors = [
-  "#ec4899",
-  "#a855f7",
-  "#6366f1",
-  "#3b82f6",
-  "#14b8a6",
-  "#f97316",
+const COUNTRY_COLORS = [
+  "rgba(236, 72, 153, 0.82)",
+  "rgba(168, 85, 247, 0.82)",
+  "rgba(99, 102, 241, 0.82)",
+  "rgba(59, 130, 246, 0.82)",
+  "rgba(20, 184, 166, 0.82)",
+  "rgba(249, 115, 22, 0.82)",
 ];
-
-const globeSphere = {
-  type: "Sphere",
-} as const;
-
-const graticule = geoGraticule10();
 
 const unitedStatesRegions: RegionOption[] = [
   {
@@ -493,7 +503,8 @@ function getCountryCode(
   country: Feature<Geometry, CountryProperties>,
 ): "US" | "CA" | null {
   const countryId = String(country.id ?? "");
-  const countryName = country.properties?.name?.toLowerCase() ?? "";
+  const countryName =
+    country.properties?.name?.toLowerCase() ?? "";
 
   if (
     countryId === "840" ||
@@ -512,7 +523,7 @@ function getCountryCode(
   return null;
 }
 
-function getDisplayCountryName(
+function getCountryName(
   country: Feature<Geometry, CountryProperties>,
 ) {
   const countryCode = getCountryCode(country);
@@ -528,26 +539,63 @@ function getDisplayCountryName(
   return country.properties?.name || "Selected country";
 }
 
+function createHeartElement(data: object): HTMLElement {
+  const heart = data as DisplayHeart;
+  const wrapper = document.createElement("div");
+
+  wrapper.setAttribute("aria-hidden", "true");
+  wrapper.title = heart.region
+    ? `${heart.region}, ${heart.country}`
+    : heart.country;
+
+  wrapper.textContent = "♥";
+  wrapper.style.display = "grid";
+  wrapper.style.placeItems = "center";
+  wrapper.style.width = heart.selected ? "38px" : "31px";
+  wrapper.style.height = heart.selected ? "38px" : "31px";
+  wrapper.style.color = "#050505";
+  wrapper.style.fontFamily = "Arial, sans-serif";
+  wrapper.style.fontSize = heart.selected ? "36px" : "30px";
+  wrapper.style.fontWeight = "900";
+  wrapper.style.lineHeight = "1";
+  wrapper.style.textShadow = [
+    "-1.5px -1.5px 0 #f9a8d4",
+    "1.5px -1.5px 0 #f9a8d4",
+    "-1.5px 1.5px 0 #f9a8d4",
+    "1.5px 1.5px 0 #f9a8d4",
+    "0 0 9px rgba(244, 114, 182, 0.95)",
+    "0 0 18px rgba(236, 72, 153, 0.75)",
+  ].join(", ");
+  wrapper.style.pointerEvents = "none";
+  wrapper.style.userSelect = "none";
+  wrapper.style.transform = "translate(-50%, -50%)";
+  wrapper.style.filter =
+    "drop-shadow(0 3px 3px rgba(0, 0, 0, 0.85))";
+
+  if (heart.selected) {
+    wrapper.style.animation =
+      "world-heart-pulse 1.2s ease-in-out infinite";
+  }
+
+  return wrapper;
+}
+
 export default function WorldHeartMap() {
-  const svgRef = useRef<SVGSVGElement | null>(null);
-  const dragStateRef = useRef<DragState | null>(null);
+  const globeRef = useRef<GlobeHandle | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
 
-  const [rotation, setRotation] = useState<GlobeRotation>([
-    -10,
-    -18,
-    0,
-  ]);
+  const [dimensions, setDimensions] = useState({
+    width: 900,
+    height: 560,
+  });
 
-  const [hearts, setHearts] = useState<MapHeartRecord[]>([]);
-
+  const [hearts, setHearts] = useState<MapHeartRow[]>([]);
   const [selectedLocation, setSelectedLocation] =
     useState<SelectedLocation | null>(null);
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isDragging, setIsDragging] = useState(false);
   const [hasSubmitted, setHasSubmitted] = useState(false);
-
   const [message, setMessage] = useState("");
   const [loadError, setLoadError] = useState("");
 
@@ -563,59 +611,48 @@ export default function WorldHeartMap() {
     >;
   }, []);
 
-  const states = useMemo(() => {
-    const topology = usData as unknown as Topology;
+  const approvedHearts = useMemo<DisplayHeart[]>(() => {
+    return hearts
+      .map((heart) => ({
+        id: `approved-${heart.id}`,
+        lat: Number(heart.latitude),
+        lng: Number(heart.longitude),
+        country: heart.country || "Unknown country",
+        region: heart.region,
+        selected: false,
+      }))
+      .filter(
+        (heart) =>
+          Number.isFinite(heart.lat) &&
+          Number.isFinite(heart.lng),
+      );
+  }, [hearts]);
 
-    return feature(
-      topology,
-      topology.objects.states,
-    ) as unknown as FeatureCollection<
-      Geometry,
-      GeoJsonProperties
-    >;
-  }, []);
+  const markerData = useMemo<DisplayHeart[]>(() => {
+    if (!selectedLocation || hasSubmitted) {
+      return approvedHearts;
+    }
 
-  const projection = useMemo(() => {
-    return geoOrthographic()
-      .translate([GLOBE_CENTER_X, GLOBE_CENTER_Y])
-      .scale(GLOBE_SCALE)
-      .rotate(rotation)
-      .clipAngle(90)
-      .precision(0.4);
-  }, [rotation]);
-
-  const pathGenerator = useMemo(() => {
-    return geoPath(projection);
-  }, [projection]);
+    return [
+      ...approvedHearts,
+      {
+        id: "selected-location",
+        lat: selectedLocation.latitude,
+        lng: selectedLocation.longitude,
+        country: selectedLocation.country,
+        region: selectedLocation.region || null,
+        selected: true,
+      },
+    ];
+  }, [approvedHearts, hasSubmitted, selectedLocation]);
 
   const countryCount = useMemo(() => {
-    const reachedCountries = new Set<string>();
-
-    hearts.forEach((heart) => {
-      if (heart.country) {
-        reachedCountries.add(heart.country);
-        return;
-      }
-
-      const coordinates: [number, number] = [
-        heart.longitude,
-        heart.latitude,
-      ];
-
-      const matchingCountry = countries.features.find((country) =>
-        geoContains(country, coordinates),
-      );
-
-      const countryName =
-        matchingCountry?.properties?.name;
-
-      if (countryName) {
-        reachedCountries.add(countryName);
-      }
-    });
-
-    return reachedCountries.size;
-  }, [countries, hearts]);
+    return new Set(
+      approvedHearts
+        .map((heart) => heart.country)
+        .filter(Boolean),
+    ).size;
+  }, [approvedHearts]);
 
   const availableRegions =
     selectedLocation?.countryCode === "US"
@@ -629,10 +666,11 @@ export default function WorldHeartMap() {
     selectedLocation?.countryCode === "CA";
 
   useEffect(() => {
-    const previouslySubmitted =
-      window.localStorage.getItem(HEART_STORAGE_KEY) === "true";
+    const submitted =
+      window.localStorage.getItem(HEART_STORAGE_KEY) ===
+      "true";
 
-    setHasSubmitted(previouslySubmitted);
+    setHasSubmitted(submitted);
 
     async function loadApprovedHearts() {
       setIsLoading(true);
@@ -647,234 +685,129 @@ export default function WorldHeartMap() {
         .order("created_at", { ascending: true });
 
       if (error) {
-        console.log("Could not load map hearts:", {
-          message: error.message,
-          details: error.details,
-          hint: error.hint,
-          code: error.code,
-        });
-
+        console.error("Could not load map hearts:", error);
         setLoadError(
           "The community hearts could not be loaded.",
         );
-
         setIsLoading(false);
         return;
       }
 
-      setHearts((data ?? []) as MapHeartRecord[]);
+      setHearts((data ?? []) as MapHeartRow[]);
       setIsLoading(false);
     }
 
-    loadApprovedHearts();
+    void loadApprovedHearts();
   }, []);
 
   useEffect(() => {
-    if (selectedLocation || isDragging || isSubmitting) {
+    const container = containerRef.current;
+
+    if (!container) {
       return;
     }
 
-    const rotationTimer = window.setInterval(() => {
-      setRotation((currentRotation) => [
-        currentRotation[0] + 0.14,
-        currentRotation[1],
-        currentRotation[2],
-      ]);
-    }, 40);
+    const updateSize = () => {
+      const width = Math.max(
+        320,
+        Math.floor(container.clientWidth),
+      );
 
-    return () => {
-      window.clearInterval(rotationTimer);
+      setDimensions({
+        width,
+        height: width < 640 ? 440 : 560,
+      });
     };
-  }, [isDragging, isSubmitting, selectedLocation]);
 
-  function findCountry(
-    coordinates: [number, number],
-  ): Feature<Geometry, CountryProperties> | undefined {
-    return countries.features.find((country) =>
-      geoContains(country, coordinates),
+    updateSize();
+
+    const observer = new ResizeObserver(updateSize);
+    observer.observe(container);
+
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    const globe = globeRef.current;
+
+    if (!globe) {
+      return;
+    }
+
+    const controls = globe.controls();
+    controls.autoRotate =
+      !selectedLocation && !isSubmitting;
+  }, [isSubmitting, selectedLocation]);
+
+  function handleGlobeReady() {
+    const globe = globeRef.current;
+
+    if (!globe) {
+      return;
+    }
+
+    const controls = globe.controls();
+    controls.autoRotate = true;
+    controls.autoRotateSpeed = 0.45;
+    controls.enablePan = false;
+    controls.minDistance = 175;
+    controls.maxDistance = 420;
+
+    globe.pointOfView(
+      {
+        lat: 24,
+        lng: -25,
+        altitude: 2.15,
+      },
+      0,
     );
   }
 
-  function selectLocationFromPointer(
-    event: ReactPointerEvent<SVGSVGElement>,
-  ) {
+  function handleGlobeClick({
+    lat,
+    lng,
+  }: {
+    lat: number;
+    lng: number;
+  }) {
     if (hasSubmitted || isSubmitting) {
       return;
     }
 
-    const svg = svgRef.current;
+    const latitude = clampLatitude(Number(lat));
+    const longitude = normalizeLongitude(Number(lng));
 
-    if (!svg) {
-      return;
-    }
-
-    const bounds = svg.getBoundingClientRect();
-
-    const svgX =
-      ((event.clientX - bounds.left) / bounds.width) *
-      MAP_WIDTH;
-
-    const svgY =
-      ((event.clientY - bounds.top) / bounds.height) *
-      MAP_HEIGHT;
-
-    const distanceFromCenter = Math.sqrt(
-      Math.pow(svgX - GLOBE_CENTER_X, 2) +
-        Math.pow(svgY - GLOBE_CENTER_Y, 2),
+    const country = countries.features.find((item) =>
+      geoContains(item, [longitude, latitude]),
     );
 
-    if (distanceFromCenter > GLOBE_SCALE) {
-      setMessage(
-        "Click directly on the globe to choose your location.",
-      );
-      return;
-    }
-
-    const coordinates = projection.invert?.([svgX, svgY]);
-
-    if (!coordinates) {
-      setMessage(
-        "That location could not be selected. Please try again.",
-      );
-      return;
-    }
-
-    const longitude = normalizeLongitude(coordinates[0]);
-    const latitude = clampLatitude(coordinates[1]);
-
-    const matchingCountry = findCountry([
-      longitude,
-      latitude,
-    ]);
-
-    if (!matchingCountry) {
+    if (!country) {
       setMessage(
         "That point is in the ocean. Please click on land near where you live.",
       );
       return;
     }
 
-    const countryCode = getCountryCode(matchingCountry);
-    const countryName =
-      getDisplayCountryName(matchingCountry);
+    const countryCode = getCountryCode(country);
 
     setSelectedLocation({
       latitude,
       longitude,
-      country: countryName,
+      country: getCountryName(country),
       countryCode,
       region: "",
     });
 
     setMessage("");
-  }
 
-  function handlePointerDown(
-    event: ReactPointerEvent<SVGSVGElement>,
-  ) {
-    if (isSubmitting) {
-      return;
-    }
-
-    event.currentTarget.setPointerCapture(event.pointerId);
-
-    dragStateRef.current = {
-      startClientX: event.clientX,
-      startClientY: event.clientY,
-      startRotation: rotation,
-      hasDragged: false,
-    };
-
-    setIsDragging(true);
-  }
-
-  function handlePointerMove(
-    event: ReactPointerEvent<SVGSVGElement>,
-  ) {
-    const dragState = dragStateRef.current;
-
-    if (!dragState) {
-      return;
-    }
-
-    const horizontalMovement =
-      event.clientX - dragState.startClientX;
-
-    const verticalMovement =
-      event.clientY - dragState.startClientY;
-
-    const movementDistance = Math.sqrt(
-      horizontalMovement * horizontalMovement +
-        verticalMovement * verticalMovement,
+    globeRef.current?.pointOfView(
+      {
+        lat: latitude,
+        lng: longitude,
+        altitude: 1.8,
+      },
+      700,
     );
-
-    if (movementDistance > 4) {
-      dragState.hasDragged = true;
-    }
-
-    if (!dragState.hasDragged) {
-      return;
-    }
-
-    const nextLongitude =
-      dragState.startRotation[0] +
-      horizontalMovement * 0.28;
-
-    const nextLatitude = Math.max(
-      -75,
-      Math.min(
-        75,
-        dragState.startRotation[1] -
-          verticalMovement * 0.28,
-      ),
-    );
-
-    setRotation([
-      nextLongitude,
-      nextLatitude,
-      0,
-    ]);
-  }
-
-  function handlePointerUp(
-    event: ReactPointerEvent<SVGSVGElement>,
-  ) {
-    const dragState = dragStateRef.current;
-
-    if (!dragState) {
-      setIsDragging(false);
-      return;
-    }
-
-    if (
-      event.currentTarget.hasPointerCapture(event.pointerId)
-    ) {
-      event.currentTarget.releasePointerCapture(
-        event.pointerId,
-      );
-    }
-
-    if (!dragState.hasDragged && !hasSubmitted) {
-      selectLocationFromPointer(event);
-    }
-
-    dragStateRef.current = null;
-    setIsDragging(false);
-  }
-
-  function handlePointerCancel(
-    event: ReactPointerEvent<SVGSVGElement>,
-  ) {
-    if (
-      event.currentTarget.hasPointerCapture(event.pointerId)
-    ) {
-      event.currentTarget.releasePointerCapture(
-        event.pointerId,
-      );
-    }
-
-    dragStateRef.current = null;
-    setIsDragging(false);
   }
 
   function handleRegionChange(regionCode: string) {
@@ -882,27 +815,35 @@ export default function WorldHeartMap() {
       return;
     }
 
-    const selectedRegion = availableRegions.find(
-      (region) => region.code === regionCode,
+    const region = availableRegions.find(
+      (item) => item.code === regionCode,
     );
 
-    if (!selectedRegion) {
+    if (!region) {
       setSelectedLocation({
         ...selectedLocation,
         region: "",
       });
-
       return;
     }
 
     setSelectedLocation({
       ...selectedLocation,
-      latitude: selectedRegion.latitude,
-      longitude: selectedRegion.longitude,
-      region: selectedRegion.name,
+      latitude: region.latitude,
+      longitude: region.longitude,
+      region: region.name,
     });
 
     setMessage("");
+
+    globeRef.current?.pointOfView(
+      {
+        lat: region.latitude,
+        lng: region.longitude,
+        altitude: 1.65,
+      },
+      700,
+    );
   }
 
   function cancelSelection() {
@@ -929,43 +870,31 @@ export default function WorldHeartMap() {
           ? "Please choose your state before adding your heart."
           : "Please choose your province or territory before adding your heart.",
       );
-
       return;
     }
 
     setIsSubmitting(true);
     setMessage("");
 
-    const approximateLatitude = approximateCoordinate(
-      selectedLocation.latitude,
-    );
-
-    const approximateLongitude = approximateCoordinate(
-      selectedLocation.longitude,
-    );
-
     const { error } = await supabase
       .from("map_hearts")
       .insert({
-        latitude: approximateLatitude,
-        longitude: approximateLongitude,
+        latitude: approximateCoordinate(
+          selectedLocation.latitude,
+        ),
+        longitude: approximateCoordinate(
+          selectedLocation.longitude,
+        ),
         country: selectedLocation.country,
         region: selectedLocation.region || null,
         status: "pending",
       });
 
     if (error) {
-      console.log("Could not submit map heart:", {
-        message: error.message,
-        details: error.details,
-        hint: error.hint,
-        code: error.code,
-      });
-
+      console.error("Could not submit map heart:", error);
       setMessage(
         "Your heart could not be submitted. Please try again.",
       );
-
       setIsSubmitting(false);
       return;
     }
@@ -977,64 +906,42 @@ export default function WorldHeartMap() {
 
     setHasSubmitted(true);
     setSelectedLocation(null);
-
     setMessage(
       "Your anonymous heart was submitted and will appear after approval. 🖤",
     );
-
     setIsSubmitting(false);
   }
 
-  const selectedPoint = selectedLocation
-    ? projection([
-        selectedLocation.longitude,
-        selectedLocation.latitude,
-      ])
-    : null;
+  const polygonCapColor: NonNullable<
+    GlobeProps["polygonCapColor"]
+  > = (countryObject) => {
+    const country =
+      countryObject as Feature<
+        Geometry,
+        CountryProperties
+      >;
+
+    const id = String(country.id ?? "0");
+    const numericId =
+      Number.parseInt(id.replace(/\D/g, ""), 10) || 0;
+
+    return COUNTRY_COLORS[
+      numericId % COUNTRY_COLORS.length
+    ];
+  };
 
   return (
     <section className="border-y border-pink-500/20 bg-white/[0.02]">
-      <style jsx>{`
-        @keyframes heart-arrive {
-          0% {
-            opacity: 0;
-            transform: scale(0);
-          }
-
-          70% {
-            opacity: 1;
-            transform: scale(1.3);
-          }
-
-          100% {
-            opacity: 1;
-            transform: scale(1);
-          }
-        }
-
-        @keyframes selected-heart-pulse {
+      <style jsx global>{`
+        @keyframes world-heart-pulse {
           0%,
           100% {
-            transform: scale(1);
+            scale: 1;
           }
 
           50% {
-            transform: scale(1.18);
+            scale: 1.22;
           }
-        }
-
-        .approved-heart {
-          opacity: 0;
-          animation: heart-arrive 0.7s ease-out forwards;
-          transform-box: fill-box;
-          transform-origin: center;
-        }
-
-        .selected-heart {
-          animation: selected-heart-pulse 1.3s ease-in-out
-            infinite;
-          transform-box: fill-box;
-          transform-origin: center;
         }
       `}</style>
 
@@ -1056,15 +963,15 @@ export default function WorldHeartMap() {
           </p>
 
           <p className="mx-auto mt-3 max-w-2xl text-sm leading-6 text-gray-500">
-            Drag the globe with your mouse or finger. Tap a
-            country to choose your approximate location.
+            Drag the globe with your mouse or finger. Tap land
+            to choose your approximate location.
           </p>
         </div>
 
         <div className="mx-auto mt-9 grid max-w-2xl grid-cols-2 gap-3">
           <div className="border border-pink-400/25 bg-black/40 px-4 py-4 text-center">
             <p className="font-serif text-3xl text-pink-200">
-              {hearts.length}
+              {approvedHearts.length}
             </p>
 
             <p className="mt-1 text-xs uppercase tracking-[0.18em] text-gray-500">
@@ -1083,231 +990,40 @@ export default function WorldHeartMap() {
           </div>
         </div>
 
-        <div className="relative mx-auto mt-8 max-w-5xl overflow-hidden border border-pink-400/30 bg-gradient-to-b from-[#090f2d] via-[#160d2b] to-black shadow-[0_0_40px_rgba(236,72,153,0.16)]">
-          <div className="pointer-events-none absolute left-1/2 top-1/2 h-[70%] w-[55%] -translate-x-1/2 -translate-y-1/2 rounded-full bg-pink-500/10 blur-3xl" />
-
-          <svg
-            ref={svgRef}
-            viewBox={`0 0 ${MAP_WIDTH} ${MAP_HEIGHT}`}
-            role="img"
-            aria-label="A draggable rotating globe showing anonymous black hearts from the community"
-            onPointerDown={handlePointerDown}
-            onPointerMove={handlePointerMove}
-            onPointerUp={handlePointerUp}
-            onPointerCancel={handlePointerCancel}
-            className={`relative h-auto w-full touch-none select-none ${
-              isDragging
-                ? "cursor-grabbing"
-                : "cursor-grab"
-            }`}
-          >
-            <defs>
-              <radialGradient
-                id="globeOcean"
-                cx="35%"
-                cy="28%"
-                r="75%"
-              >
-                <stop
-                  offset="0%"
-                  stopColor="#334155"
-                />
-
-                <stop
-                  offset="42%"
-                  stopColor="#172554"
-                />
-
-                <stop
-                  offset="78%"
-                  stopColor="#1e1b4b"
-                />
-
-                <stop
-                  offset="100%"
-                  stopColor="#050816"
-                />
-              </radialGradient>
-
-              <radialGradient
-                id="globeShine"
-                cx="32%"
-                cy="25%"
-                r="55%"
-              >
-                <stop
-                  offset="0%"
-                  stopColor="#ffffff"
-                  stopOpacity="0.22"
-                />
-
-                <stop
-                  offset="100%"
-                  stopColor="#ffffff"
-                  stopOpacity="0"
-                />
-              </radialGradient>
-
-              <filter
-                id="globeGlow"
-                x="-40%"
-                y="-40%"
-                width="180%"
-                height="180%"
-              >
-                <feGaussianBlur
-                  stdDeviation="12"
-                  result="blur"
-                />
-
-                <feMerge>
-                  <feMergeNode in="blur" />
-                  <feMergeNode in="SourceGraphic" />
-                </feMerge>
-              </filter>
-
-              <filter
-                id="heartGlow"
-                x="-100%"
-                y="-100%"
-                width="300%"
-                height="300%"
-              >
-                <feGaussianBlur
-                  stdDeviation="2.5"
-                  result="blur"
-                />
-
-                <feMerge>
-                  <feMergeNode in="blur" />
-                  <feMergeNode in="SourceGraphic" />
-                </feMerge>
-              </filter>
-            </defs>
-
-            <path
-              d={pathGenerator(globeSphere) ?? ""}
-              fill="url(#globeOcean)"
-              stroke="#f472b6"
-              strokeOpacity="0.8"
-              strokeWidth="2"
-              filter="url(#globeGlow)"
-            />
-
-            <path
-              d={pathGenerator(graticule) ?? ""}
-              fill="none"
-              stroke="#f9a8d4"
-              strokeOpacity="0.13"
-              strokeWidth="0.7"
-              vectorEffect="non-scaling-stroke"
-            />
-
-            <g>
-              {countries.features.map((country, index) => (
-                <path
-                  key={country.id ?? index}
-                  d={pathGenerator(country) ?? ""}
-                  fill={
-                    countryColors[
-                      index % countryColors.length
-                    ]
-                  }
-                  fillOpacity="0.82"
-                  stroke="#fdf2f8"
-                  strokeOpacity="0.72"
-                  strokeWidth="0.65"
-                  vectorEffect="non-scaling-stroke"
-                >
-                  <title>
-                    {country.properties?.name || "Country"}
-                  </title>
-                </path>
-              ))}
-            </g>
-
-            <path
-              d={pathGenerator(states) ?? ""}
-              fill="none"
-              stroke="#ffffff"
-              strokeOpacity="0.65"
-              strokeWidth="0.5"
-              vectorEffect="non-scaling-stroke"
-              pointerEvents="none"
-            />
-
-            <path
-              d={pathGenerator(globeSphere) ?? ""}
-              fill="url(#globeShine)"
-              pointerEvents="none"
-            />
-
-            <g pointerEvents="none">
-              {hearts.map((heart, index) => {
-                const point = projection([
-                  heart.longitude,
-                  heart.latitude,
-                ]);
-
-                if (!point) {
-                  return null;
-                }
-
-                const globeCenter: [number, number] = [
-                  -rotation[0],
-                  -rotation[1],
-                ];
-
-                const isOnFront =
-                  geoDistance(
-                    [heart.longitude, heart.latitude],
-                    globeCenter,
-                  ) <
-                  Math.PI / 2;
-
-                if (!isOnFront) {
-                  return null;
-                }
-
-                return (
-                  <g
-                    key={heart.id}
-                    transform={`translate(${point[0]} ${point[1]})`}
-                    className="approved-heart"
-                    style={{
-                      animationDelay: `${Math.min(
-                        index * 55,
-                        1400,
-                      )}ms`,
-                    }}
-                  >
-                    <path
-                      d="M0 8 C-2 5 -10 0 -10 -6 C-10 -12 -3 -14 0 -8 C3 -14 10 -12 10 -6 C10 0 2 5 0 8 Z"
-                      fill="#030303"
-                      stroke="#f472b6"
-                      strokeWidth="1.4"
-                      filter="url(#heartGlow)"
-                    />
-                  </g>
-                );
-              })}
-
-              {selectedPoint && !hasSubmitted && (
-                <g
-                  transform={`translate(${selectedPoint[0]} ${selectedPoint[1]}) scale(1.35)`}
-                  className="selected-heart"
-                >
-                  <path
-                    d="M0 8 C-2 5 -10 0 -10 -6 C-10 -12 -3 -14 0 -8 C3 -14 10 -12 10 -6 C10 0 2 5 0 8 Z"
-                    fill="#030303"
-                    stroke="#f9a8d4"
-                    strokeWidth="1.8"
-                    filter="url(#heartGlow)"
-                  />
-                </g>
-              )}
-            </g>
-          </svg>
+        <div
+          ref={containerRef}
+          className="relative mx-auto mt-8 max-w-5xl overflow-hidden border border-pink-400/30 bg-gradient-to-b from-[#090f2d] via-[#160d2b] to-black shadow-[0_0_40px_rgba(236,72,153,0.16)]"
+        >
+          <Globe
+            ref={globeRef}
+            width={dimensions.width}
+            height={dimensions.height}
+            backgroundColor="rgba(0,0,0,0)"
+            showGlobe
+            showGraticules
+            showAtmosphere
+            atmosphereColor="#ec4899"
+            atmosphereAltitude={0.16}
+            animateIn
+            polygonsData={countries.features}
+            polygonAltitude={0.008}
+            polygonCapColor={polygonCapColor}
+            polygonSideColor={() =>
+              "rgba(236, 72, 153, 0.12)"
+            }
+            polygonStrokeColor={() =>
+              "rgba(253, 242, 248, 0.70)"
+            }
+            polygonsTransitionDuration={0}
+            htmlElementsData={markerData}
+            htmlLat="lat"
+            htmlLng="lng"
+            htmlAltitude={0.035}
+            htmlElement={createHeartElement}
+            htmlTransitionDuration={250}
+            onGlobeClick={handleGlobeClick}
+            onGlobeReady={handleGlobeReady}
+          />
 
           <div className="pointer-events-none absolute bottom-4 left-1/2 -translate-x-1/2 whitespace-nowrap border border-white/15 bg-black/70 px-4 py-2 text-xs uppercase tracking-[0.16em] text-gray-300 backdrop-blur-sm">
             Drag to spin · Tap land to add a heart
@@ -1329,7 +1045,7 @@ export default function WorldHeartMap() {
 
           {!isLoading &&
             !loadError &&
-            hearts.length === 0 && (
+            approvedHearts.length === 0 && (
               <p className="text-sm text-gray-500">
                 The first approved community hearts will
                 appear here.

@@ -2,9 +2,9 @@ import Navbar from "./components/Navbar";
 import Hero from "./components/Hero";
 import Welcome from "./components/Welcome";
 import Stats from "./components/Stats";
+import WorldHeartMap from "./components/WorldHeartMap";
 import FeaturedLetters from "./components/FeaturedLetters";
 import GalleryPreview from "./components/GalleryPreview";
-import WorldHeartMap from "./components/WorldHeartMap";
 import Stories from "./components/Stories";
 import Footer from "./components/Footer";
 import PageDecorations from "./components/PageDecorations";
@@ -19,9 +19,12 @@ export default function Home() {
         <Hero />
         <Welcome />
         <Stats />
+
+        {/* NEW LOCATION */}
+        <WorldHeartMap />
+
         <FeaturedLetters />
         <GalleryPreview />
-        <WorldHeartMap />
         <Stories />
         <Footer />
       </div>
