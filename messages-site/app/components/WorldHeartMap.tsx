@@ -16,7 +16,7 @@ import type {
   Geometry,
 } from "geojson";
 import type { Topology } from "topojson-specification";
-import worldData from "world-atlas/countries-110m.json";
+import worldData from "world-atlas/countries-50m.json";
 import { supabase } from "../lib/supabase";
 
 const Globe = dynamic(() => import("react-globe.gl"), {
@@ -68,8 +68,18 @@ type SelectedLocation = {
   region: string;
 };
 
+type LandMatch = {
+  country: Feature<Geometry, CountryProperties>;
+  latitude: number;
+  longitude: number;
+  wasAdjusted: boolean;
+};
+
 const HEART_STORAGE_KEY =
   "messages-to-dom-map-heart-submitted";
+
+const NEARBY_LAND_RADII = [0.25, 0.5, 0.8, 1.2, 1.8, 2.5];
+const NEARBY_LAND_DIRECTIONS = 16;
 
 const COUNTRY_COLORS = [
   "rgba(236, 72, 153, 0.82)",
@@ -482,6 +492,82 @@ function approximateCoordinate(value: number) {
   return Math.round(value);
 }
 
+
+function findCountryAtPoint(
+  countries: FeatureCollection<Geometry, CountryProperties>,
+  latitude: number,
+  longitude: number,
+) {
+  return countries.features.find((item) =>
+    geoContains(item, [longitude, latitude]),
+  );
+}
+
+function findCountryAtOrNearPoint(
+  countries: FeatureCollection<Geometry, CountryProperties>,
+  latitude: number,
+  longitude: number,
+): LandMatch | null {
+  const exactCountry = findCountryAtPoint(
+    countries,
+    latitude,
+    longitude,
+  );
+
+  if (exactCountry) {
+    return {
+      country: exactCountry,
+      latitude,
+      longitude,
+      wasAdjusted: false,
+    };
+  }
+
+  const longitudeScale = Math.max(
+    0.25,
+    Math.cos((latitude * Math.PI) / 180),
+  );
+
+  for (const radius of NEARBY_LAND_RADII) {
+    for (
+      let directionIndex = 0;
+      directionIndex < NEARBY_LAND_DIRECTIONS;
+      directionIndex += 1
+    ) {
+      const angle =
+        (directionIndex / NEARBY_LAND_DIRECTIONS) *
+        Math.PI *
+        2;
+
+      const nearbyLatitude = clampLatitude(
+        latitude + Math.sin(angle) * radius,
+      );
+
+      const nearbyLongitude = normalizeLongitude(
+        longitude +
+          (Math.cos(angle) * radius) / longitudeScale,
+      );
+
+      const nearbyCountry = findCountryAtPoint(
+        countries,
+        nearbyLatitude,
+        nearbyLongitude,
+      );
+
+      if (nearbyCountry) {
+        return {
+          country: nearbyCountry,
+          latitude: nearbyLatitude,
+          longitude: nearbyLongitude,
+          wasAdjusted: true,
+        };
+      }
+    }
+  }
+
+  return null;
+}
+
 function getCountryCode(
   country: Feature<Geometry, CountryProperties>,
 ): "US" | "CA" | null {
@@ -746,6 +832,38 @@ export default function WorldHeartMap() {
     );
   }
 
+  function chooseLocation(
+    country: Feature<Geometry, CountryProperties>,
+    latitude: number,
+    longitude: number,
+    wasAdjusted = false,
+  ) {
+    const countryCode = getCountryCode(country);
+
+    setSelectedLocation({
+      latitude,
+      longitude,
+      country: getCountryName(country),
+      countryCode,
+      region: "",
+    });
+
+    setMessage(
+      wasAdjusted
+        ? "We moved your heart slightly onto the nearest land so it can be placed correctly."
+        : "",
+    );
+
+    globeRef.current?.pointOfView(
+      {
+        lat: latitude,
+        lng: longitude,
+        altitude: 1.8,
+      },
+      700,
+    );
+  }
+
   function handleGlobeClick({
     lat,
     lng,
@@ -760,36 +878,50 @@ export default function WorldHeartMap() {
     const latitude = clampLatitude(Number(lat));
     const longitude = normalizeLongitude(Number(lng));
 
-    const country = countries.features.find((item) =>
-      geoContains(item, [longitude, latitude]),
+    const landMatch = findCountryAtOrNearPoint(
+      countries,
+      latitude,
+      longitude,
     );
 
-    if (!country) {
+    if (!landMatch) {
       setMessage(
-        "That point is in the ocean. Please click on land near where you live.",
+        "We could not find land close to that point. Please tap a little closer to your country.",
       );
       return;
     }
 
-    const countryCode = getCountryCode(country);
+    chooseLocation(
+      landMatch.country,
+      landMatch.latitude,
+      landMatch.longitude,
+      landMatch.wasAdjusted,
+    );
+  }
 
-    setSelectedLocation({
-      latitude,
-      longitude,
-      country: getCountryName(country),
-      countryCode,
-      region: "",
-    });
+  function handlePolygonClick(
+    countryObject: object,
+    _event: MouseEvent,
+    coordinates: {
+      lat: number;
+      lng: number;
+      altitude: number;
+    },
+  ) {
+    if (hasSubmitted || isSubmitting) {
+      return;
+    }
 
-    setMessage("");
+    const country =
+      countryObject as Feature<
+        Geometry,
+        CountryProperties
+      >;
 
-    globeRef.current?.pointOfView(
-      {
-        lat: latitude,
-        lng: longitude,
-        altitude: 1.8,
-      },
-      700,
+    chooseLocation(
+      country,
+      clampLatitude(Number(coordinates.lat)),
+      normalizeLongitude(Number(coordinates.lng)),
     );
   }
 
@@ -946,8 +1078,9 @@ export default function WorldHeartMap() {
           </p>
 
           <p className="mx-auto mt-3 max-w-2xl text-sm leading-6 text-gray-500">
-            Drag the globe with your mouse or finger. Tap land
-            to choose your approximate location.
+            Drag the globe with your mouse or finger. Tap your
+            country to choose an approximate location. Coastal taps
+            will gently snap to nearby land.
           </p>
         </div>
 
@@ -998,6 +1131,9 @@ export default function WorldHeartMap() {
               "rgba(253, 242, 248, 0.70)"
             }
             polygonsTransitionDuration={0}
+            enablePointerInteraction
+            showPointerCursor
+            onPolygonClick={handlePolygonClick}
             htmlElementsData={markerData}
             htmlLat="lat"
             htmlLng="lng"
@@ -1009,7 +1145,7 @@ export default function WorldHeartMap() {
           />
 
           <div className="pointer-events-none absolute bottom-4 left-1/2 -translate-x-1/2 whitespace-nowrap border border-white/15 bg-black/70 px-4 py-2 text-xs uppercase tracking-[0.16em] text-gray-300 backdrop-blur-sm">
-            Drag to spin · Tap land to add a heart
+            Drag to spin · Tap your country to add a heart
           </div>
         </div>
 
