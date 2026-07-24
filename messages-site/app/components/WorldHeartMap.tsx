@@ -30,23 +30,6 @@ const Globe = dynamic(() => import("react-globe.gl"), {
 
 type GlobeProps = ComponentProps<typeof Globe>;
 
-type GlobeHandle = {
-  controls: () => {
-    autoRotate: boolean;
-    autoRotateSpeed: number;
-    enablePan: boolean;
-    minDistance: number;
-    maxDistance: number;
-  };
-  pointOfView: (
-    point: {
-      lat: number;
-      lng: number;
-      altitude: number;
-    },
-    transitionMs?: number,
-  ) => void;
-};
 
 type MapHeartRow = {
   id: number;
@@ -581,7 +564,7 @@ function createHeartElement(data: object): HTMLElement {
 }
 
 export default function WorldHeartMap() {
-  const globeRef = useRef<GlobeHandle | null>(null);
+  const globeRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   const [dimensions, setDimensions] = useState({
