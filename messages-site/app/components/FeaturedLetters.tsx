@@ -17,6 +17,30 @@ type FeaturedLetter = FeaturedLetterRecord & {
   imagePreviewUrl: string | null;
 };
 
+const TWO_DAYS_IN_MILLISECONDS = 2 * 24 * 60 * 60 * 1000;
+const NUMBER_OF_FEATURED_LETTERS = 3;
+
+function selectRotatingLetters(
+  allLetters: FeaturedLetterRecord[],
+): FeaturedLetterRecord[] {
+  if (allLetters.length <= NUMBER_OF_FEATURED_LETTERS) {
+    return allLetters;
+  }
+
+  const rotationNumber = Math.floor(
+    Date.now() / TWO_DAYS_IN_MILLISECONDS,
+  );
+
+  const startingIndex = rotationNumber % allLetters.length;
+
+  return Array.from(
+    {
+      length: Math.min(NUMBER_OF_FEATURED_LETTERS, allLetters.length),
+    },
+    (_, index) => allLetters[(startingIndex + index) % allLetters.length],
+  );
+}
+
 export default function FeaturedLetters() {
   const [letters, setLetters] = useState<FeaturedLetter[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -32,8 +56,7 @@ export default function FeaturedLetters() {
         .select("id, name, country, letter, image_url, created_at")
         .eq("status", "approved")
         .eq("featured", true)
-        .order("created_at", { ascending: false })
-        .limit(3);
+        .order("created_at", { ascending: false });
 
       if (error) {
         console.log("Could not load featured letters:", error);
@@ -42,8 +65,11 @@ export default function FeaturedLetters() {
         return;
       }
 
+      const allFeaturedLetters = (data ?? []) as FeaturedLetterRecord[];
+      const selectedLetters = selectRotatingLetters(allFeaturedLetters);
+
       const lettersWithImages = await Promise.all(
-        ((data ?? []) as FeaturedLetterRecord[]).map(async (item) => {
+        selectedLetters.map(async (item) => {
           if (!item.image_url) {
             return {
               ...item,
@@ -99,7 +125,10 @@ export default function FeaturedLetters() {
       {isLoading && (
         <div className="border border-pink-400/30 bg-white/[0.03] p-10 text-center">
           <div className="text-5xl">💌</div>
-          <p className="mt-4 text-pink-200">Opening featured letters...</p>
+
+          <p className="mt-4 text-pink-200">
+            Opening featured letters...
+          </p>
         </div>
       )}
 
