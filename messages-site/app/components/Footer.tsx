@@ -105,6 +105,11 @@ const supportLinks = [
     href: "https://www.yungbludofficial.com/tour/",
     icon: "🎟",
   },
+  {
+    name: "War Child UK",
+    href: "https://www.warchild.org.uk/",
+    icon: "🕊️",
+  },
 ];
 
 export default function Footer() {
