@@ -9,7 +9,7 @@ export default function Hero() {
           alt="Messages to Dom banner decorated with hearts"
           fill
           priority
-          className="object-contain object-center sm:object-cover"
+          className="object-cover object-center"
           sizes="100vw"
         />
 
