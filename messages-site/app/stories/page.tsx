@@ -220,7 +220,7 @@ export default function StoriesPage() {
 
           <div className="mt-9 flex flex-wrap justify-center gap-4">
             <a
-              href="/share-your-story"
+              href="/stories/submit"
               className="rounded-full bg-pink-500 px-7 py-3 text-sm font-bold uppercase tracking-[0.16em] text-black transition hover:bg-pink-400"
             >
               Share Your Story
@@ -287,7 +287,7 @@ export default function StoriesPage() {
                 have been reviewed.
               </p>
               <a
-                href="/share-your-story"
+                href="/stories/submit"
                 className="mt-8 inline-flex rounded-full border border-pink-400/50 px-7 py-3 text-sm font-bold uppercase tracking-[0.16em] text-pink-200 transition hover:bg-pink-500 hover:text-black"
               >
                 Share the First Story
@@ -342,7 +342,7 @@ export default function StoriesPage() {
             community has meant to you.
           </p>
           <a
-            href="/share-your-story"
+            href="/stories/submit"
             className="mt-8 inline-flex rounded-full bg-pink-500 px-8 py-3 text-sm font-bold uppercase tracking-[0.16em] text-black transition hover:bg-pink-400"
           >
             Share Your Story
