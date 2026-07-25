@@ -29,8 +29,6 @@ export default function Home() {
 
         <GalleryPreview />
 
-        <Stories />
-
         <Footer />
       </div>
     </main>
