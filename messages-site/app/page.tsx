@@ -4,6 +4,7 @@ import Welcome from "./components/Welcome";
 import Stats from "./components/Stats";
 import WorldHeartMap from "./components/WorldHeartMap";
 import FeaturedLetters from "./components/FeaturedLetters";
+import FeaturedStories from "./components/FeaturedStories";
 import GalleryPreview from "./components/GalleryPreview";
 import Stories from "./components/Stories";
 import Footer from "./components/Footer";
@@ -20,12 +21,16 @@ export default function Home() {
         <Welcome />
         <Stats />
 
-        {/* NEW LOCATION */}
         <WorldHeartMap />
 
         <FeaturedLetters />
+
+        <FeaturedStories />
+
         <GalleryPreview />
+
         <Stories />
+
         <Footer />
       </div>
     </main>
