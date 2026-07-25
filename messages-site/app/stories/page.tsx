@@ -220,7 +220,7 @@ export default function StoriesPage() {
 
           <div className="mt-9 flex flex-wrap justify-center gap-4">
             <a
-              href="/stories/submit"
+              href="#choose-story"
               className="rounded-full bg-pink-500 px-7 py-3 text-sm font-bold uppercase tracking-[0.16em] text-black transition hover:bg-pink-400"
             >
               Share Your Story
@@ -231,6 +231,52 @@ export default function StoriesPage() {
             >
               Read the Stories
             </a>
+          </div>
+        </div>
+      </section>
+
+      <section
+        id="choose-story"
+        className="border-b border-pink-500/20 bg-gradient-to-b from-black to-zinc-950 px-6 py-16"
+      >
+        <div className="mx-auto max-w-6xl">
+          <div className="text-center">
+            <p className="text-sm uppercase tracking-[0.3em] text-pink-400">
+              Choose your story
+            </p>
+
+            <h2 className="mt-4 font-serif text-4xl text-pink-100 sm:text-5xl">
+              What would you like to share?
+            </h2>
+
+            <p className="mx-auto mt-5 max-w-2xl leading-8 text-gray-400">
+              Select one of the five categories below to open the story
+              submission form.
+            </p>
+          </div>
+
+          <div className="mt-10 grid gap-5 md:grid-cols-2 xl:grid-cols-5">
+            {STORY_CATEGORIES.map((category) => (
+              <a
+                key={category.slug}
+                href={`/stories/submit?category=${category.slug}`}
+                className="group flex h-full flex-col rounded-[2rem] border border-pink-400/30 bg-gradient-to-b from-zinc-900 to-black p-6 text-center transition duration-300 hover:-translate-y-1 hover:border-pink-400/70 hover:shadow-[0_0_30px_rgba(236,72,153,0.2)]"
+              >
+                <span className="text-5xl">{category.emoji}</span>
+
+                <h3 className="mt-5 font-serif text-xl text-pink-100">
+                  {category.title}
+                </h3>
+
+                <p className="mt-4 flex-1 text-sm leading-6 text-gray-400">
+                  {category.description}
+                </p>
+
+                <span className="mt-6 text-sm font-bold uppercase tracking-[0.14em] text-pink-400 transition group-hover:text-pink-200">
+                  Choose this category →
+                </span>
+              </a>
+            ))}
           </div>
         </div>
       </section>
@@ -287,7 +333,7 @@ export default function StoriesPage() {
                 have been reviewed.
               </p>
               <a
-                href="/stories/submit"
+                href="#choose-story"
                 className="mt-8 inline-flex rounded-full border border-pink-400/50 px-7 py-3 text-sm font-bold uppercase tracking-[0.16em] text-pink-200 transition hover:bg-pink-500 hover:text-black"
               >
                 Share the First Story
@@ -342,7 +388,7 @@ export default function StoriesPage() {
             community has meant to you.
           </p>
           <a
-            href="/stories/submit"
+            href="#choose-story"
             className="mt-8 inline-flex rounded-full bg-pink-500 px-8 py-3 text-sm font-bold uppercase tracking-[0.16em] text-black transition hover:bg-pink-400"
           >
             Share Your Story
