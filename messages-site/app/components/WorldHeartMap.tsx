@@ -816,8 +816,7 @@ export default function WorldHeartMap() {
     }
 
     const controls = globe.controls();
-    controls.autoRotate = true;
-    controls.autoRotateSpeed = 0.45;
+    controls.autoRotate = false;
     controls.enablePan = false;
     controls.minDistance = 175;
     controls.maxDistance = 420;

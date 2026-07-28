@@ -262,10 +262,10 @@ function SubmitStoryForm() {
       });
 
     if (storyError) {
-      console.log(
-        "Supabase story submission error:",
-        storyError,
-      );
+     console.log(
+  "Supabase story submission error:",
+  storyError,
+);
 
       setSubmitError(
         "Your story could not be submitted. Please try again.",
