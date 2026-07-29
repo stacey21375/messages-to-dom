@@ -275,12 +275,6 @@ function SubmitStoryForm() {
   setIsSubmitting(false);
   return;
 }
-      setSubmitError(
-        "Your story could not be submitted. Please try again.",
-      );
-      setIsSubmitting(false);
-      return;
-    }
 
     setSubmitted(true);
     clearForm();
