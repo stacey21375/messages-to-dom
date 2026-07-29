@@ -261,14 +261,20 @@ function SubmitStoryForm() {
         status: "pending",
       });
 
-    if (storyError) {
-console.error("Supabase story submission error:", {
-  code: storyError?.code,
-  message: storyError?.message,
-  details: storyError?.details,
-  hint: storyError?.hint,
-});
+   if (storyError) {
+  console.error("=== SUPABASE STORY ERROR ===");
+  console.error("Code:", storyError.code);
+  console.error("Message:", storyError.message);
+  console.error("Details:", storyError.details);
+  console.error("Hint:", storyError.hint);
+  console.error("Full error:", JSON.stringify(storyError, null, 2));
 
+  setSubmitError(
+    "Your story could not be submitted. Please try again.",
+  );
+  setIsSubmitting(false);
+  return;
+}
       setSubmitError(
         "Your story could not be submitted. Please try again.",
       );
