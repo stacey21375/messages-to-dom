@@ -20,20 +20,35 @@ export default function Stats() {
 
   useEffect(() => {
     async function loadStats() {
-      const { data, error } = await supabase
-        .from("letters")
-        .select("country")
-        .eq("status", "approved");
+      const [
+        { data: lettersData, error: lettersError },
+        { count: storiesCount, error: storiesError },
+      ] = await Promise.all([
+        supabase
+          .from("letters")
+          .select("country")
+          .eq("status", "approved"),
 
-      if (error) {
-        console.error("Error loading stats:", error);
+        supabase
+          .from("stories")
+          .select("*", { count: "exact", head: true })
+          .eq("status", "approved"),
+      ]);
+
+      if (lettersError) {
+        console.error("Error loading letter stats:", lettersError);
         return;
       }
 
-      const letters = data.length;
+      if (storiesError) {
+        console.error("Error loading story stats:", storiesError);
+        return;
+      }
+
+      const letters = lettersData.length;
 
       const uniqueCountries = new Set(
-        data
+        lettersData
           .map((letter) => letter.country?.trim())
           .filter((country): country is string => Boolean(country))
       );
@@ -41,7 +56,7 @@ export default function Stats() {
       setStats({
         hearts: letters,
         letters: letters,
-        stories: 0,
+        stories: storiesCount ?? 0,
         countries: uniqueCountries.size,
       });
     }
