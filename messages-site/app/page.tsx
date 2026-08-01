@@ -9,6 +9,7 @@ import GalleryPreview from "./components/GalleryPreview";
 import Stories from "./components/Stories";
 import Footer from "./components/Footer";
 import PageDecorations from "./components/PageDecorations";
+import BirthdayCardPreview from "./components/BirthdayCardPreview";
 
 export default function Home() {
   return (
@@ -20,6 +21,8 @@ export default function Home() {
         <Hero />
         <Welcome />
         <Stats />
+
+        <BirthdayCardPreview />
 
         <WorldHeartMap />
 
